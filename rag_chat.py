@@ -28,52 +28,52 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 
 def generate_query_embedding(query):
-    """Generate embedding from Hugging Face API"""
 
     payload = {"inputs": query}
 
     response = requests.post(
-    HF_URL,
-    headers=headers,
-    json=payload,
-    timeout=20
+        HF_URL,
+        headers=headers,
+        json=payload
     )
 
-    data = response.json()
-
-    if not data:
-        raise Exception("Embedding API returned empty response")
-
-    # HF returns token embeddings -> average them
-    if isinstance(data[0], list):
-        embedding = [sum(col) / len(col) for col in zip(*data)]
-    else:
-        embedding = data
+    embedding = response.json()[0]
 
     return embedding
 
 
-def retrieve_context(query):
+def retrieve_context(query, top_k=5):
 
-    embedding = get_embedding(query)
+    query_embedding = generate_query_embedding(query)
 
     results = index.query(
-        vector=embedding,
-        top_k=3,
+        vector=query_embedding,
+        top_k=top_k,
+        namespace="class 6 - class 6th - Science (3).pdf",
         include_metadata=True
     )
 
     matches = results.get("matches", [])
 
     if not matches:
+        print("No matches returned from Pinecone")
         return "", []
 
-    context = ""
+    contexts = []
     sources = []
 
     for match in matches:
-        context += match["metadata"]["text"] + "\n"
-        sources.append(match["metadata"].get("source", "Unknown"))
+
+        meta = match.get("metadata", {})
+
+        contexts.append(meta.get("text", ""))
+
+        sources.append({
+            "source": meta.get("source", "unknown"),
+            "page": meta.get("page", "unknown")
+        })
+
+    context = "\n\n".join(contexts)
 
     return context, sources
 
