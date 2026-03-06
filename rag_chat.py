@@ -53,43 +53,29 @@ def generate_query_embedding(query):
     return embedding
 
 
-def retrieve_context(query, top_k=5):
+def retrieve_context(query):
 
-    print("Generating embedding...")
-
-    query_embedding = generate_query_embedding(query)
-
-    print("Querying Pinecone...")
+    embedding = get_embedding(query)
 
     results = index.query(
-        vector=query_embedding,
-        top_k=top_k,
-        namespace="class 6 - class 6th - Science (3).pdf",
+        vector=embedding,
+        top_k=3,
         include_metadata=True
     )
 
-    contexts = []
+    matches = results.get("matches", [])
+
+    if not matches:
+        return "", []
+
+    context = ""
     sources = []
 
-    matches = results.matches
-
-    print("Matches found:", len(matches))
-
     for match in matches:
-
-        meta = match.metadata
-
-        contexts.append(meta.get("text", ""))
-
-        sources.append({
-            "source": meta.get("source", "unknown"),
-            "page": meta.get("page", "unknown")
-        })
-
-    context = "\n\n".join(contexts)
+        context += match["metadata"]["text"] + "\n"
+        sources.append(match["metadata"].get("source", "Unknown"))
 
     return context, sources
-
 
 def ask_llm(query, context):
     """Send context + question to LLM"""
@@ -154,9 +140,12 @@ def rag_chat(query):
 
     except Exception as e:
 
-        print("RAG ERROR:", str(e))
+        import traceback
+        print("========== RAG ERROR ==========")
+        traceback.print_exc()   # THIS SHOWS THE REAL ERROR
+        print("================================")
 
         return {
-            "answer": "Sorry, something went wrong while processing your request.",
+            "answer": "Server error occurred while processing the request.",
             "sources": []
         }
