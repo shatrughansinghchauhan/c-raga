@@ -33,9 +33,10 @@ def generate_query_embedding(query):
     payload = {"inputs": query}
 
     response = requests.post(
-        HF_URL,
-        headers=headers,
-        json=payload
+    HF_URL,
+    headers=headers,
+    json=payload,
+    timeout=20
     )
 
     data = response.json()
@@ -126,15 +127,26 @@ def rag_chat(query):
     """Main RAG pipeline"""
 
     try:
+
+        print("STEP 1: Query received ->", query)
+
         context, sources = retrieve_context(query)
 
+        print("STEP 2: Context length ->", len(context))
+
         if not context:
+            print("No context retrieved from Pinecone")
+
             return {
                 "answer": "I could not find the answer in the documents.",
                 "sources": []
             }
 
+        print("STEP 3: Sending prompt to LLM")
+
         answer = ask_llm(query, context)
+
+        print("STEP 4: LLM response received")
 
         return {
             "answer": answer,
@@ -142,7 +154,9 @@ def rag_chat(query):
         }
 
     except Exception as e:
+
         print("RAG ERROR:", str(e))
+
         return {
             "answer": "Sorry, something went wrong while processing your request.",
             "sources": []
