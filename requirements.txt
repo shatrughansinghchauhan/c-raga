@@ -1,5 +1,6 @@
-requests
+flask
 pinecone
 groq
-tqdm
-pypdf
+requests
+gunicorn
+python-dotenv
