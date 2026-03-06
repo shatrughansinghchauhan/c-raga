@@ -11,7 +11,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 INDEX_NAME = "chatbot-index"
 
 # Embedding model
-EMBED_MODEL = "BAAI/bge-large-en-v1.5"
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}"
 
@@ -37,9 +37,14 @@ def generate_query_embedding(query):
         json=payload
     )
 
-    embedding = response.json()[0]
+    result = response.json()
 
-    return embedding
+    print("HF RESPONSE:", result)
+
+    if isinstance(result, dict):
+        raise Exception(f"HuggingFace error: {result}")
+
+    return result[0]
 
 
 def retrieve_context(query, top_k=5):
