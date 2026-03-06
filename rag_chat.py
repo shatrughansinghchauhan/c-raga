@@ -1,63 +1,113 @@
 import os
 import requests
-import pinecone
-from typing import List
+from pinecone import Pinecone
+from groq import Groq
 
-# -----------------------------
-# ENVIRONMENT VARIABLES
-# -----------------------------
+# Environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX = os.getenv("PINECONE_INDEX", "chatbot-index")
-PINECONE_ENV = os.getenv("PINECONE_ENV", "us-east1-gcp")  # replace with your env
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+HF_API_KEY = os.getenv("HF_API_KEY")
 
-# -----------------------------
-# INITIALIZE PINECONE
-# -----------------------------
-pinecone.init(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
-index = pinecone.Index(PINECONE_INDEX)
+INDEX_NAME = "chatbot-index"
 
-# -----------------------------
-# FUNCTIONS
-# -----------------------------
+# Smaller embedding model
+EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 
-def retrieve_documents(query_embedding: List[float], top_k: int = 5) -> List[str]:
-    """
-    Retrieve top-k relevant chunks from Pinecone.
-    query_embedding: precomputed embedding of the question (list of floats)
-    """
-    try:
-        res = index.query(vector=query_embedding, top_k=top_k, include_metadata=True)
-        matches = res.get("matches", [])
-        return [match["metadata"]["text"] for match in matches]
-    except Exception as e:
-        print("Pinecone retrieval error:", e)
-        return []
+HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}"
 
-def generate_answer(question: str, context_docs: List[str]) -> str:
-    """
-    Generate answer from Groq LLM given question and context.
-    """
-    try:
-        prompt = f"Context: {context_docs}\n\nQuestion: {question}\nAnswer:"
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama3",
-            "prompt": prompt,
-            "max_tokens": 512
-        }
+headers = {
+    "Authorization": f"Bearer {HF_API_KEY}"
+}
 
-        resp = requests.post(
-            "https://api.groq.com/v1/completions",
-            headers=headers,
-            json=payload,
-            timeout=20
-        )
-        resp.raise_for_status()
-        return resp.json().get("completion", "Sorry, I could not generate an answer.")
-    except Exception as e:
-        print("Groq API error:", e)
-        return "Sorry, something went wrong with the LLM."
+# Pinecone
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index = pc.Index(INDEX_NAME)
+
+# Groq
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+
+def generate_query_embedding(query):
+
+    payload = {"inputs": query}
+
+    response = requests.post(
+        HF_URL,
+        headers=headers,
+        json=payload
+    )
+
+    embedding = response.json()
+
+    return embedding
+
+
+def retrieve_context(query, top_k=5):
+
+    query_embedding = generate_query_embedding(query)
+
+    results = index.query(
+        vector=query_embedding,
+        top_k=top_k,
+        include_metadata=True
+    )
+
+    contexts = []
+    sources = []
+
+    for match in results["matches"]:
+
+        meta = match["metadata"]
+
+        contexts.append(meta["text"])
+
+        sources.append({
+            "source": meta["source"],
+            "page": meta["page"]
+        })
+
+    context = "\n\n".join(contexts)
+
+    return context, sources
+
+
+def ask_llm(query, context):
+
+    prompt = f"""
+You are a helpful assistant answering questions from documents.
+
+Use ONLY the context below.
+
+If the answer is not present say:
+"I could not find the answer in the documents."
+
+Context:
+{context}
+
+Question:
+{query}
+
+Answer:
+"""
+
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2
+    )
+
+    return response.choices[0].message.content
+
+
+def rag_chat(query):
+
+    context, sources = retrieve_context(query)
+
+    answer = ask_llm(query, context)
+
+    return {
+        "answer": answer,
+        "sources": sources
+    }
