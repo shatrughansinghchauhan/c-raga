@@ -54,9 +54,12 @@ def generate_query_embedding(query):
 
 
 def retrieve_context(query, top_k=5):
-    """Retrieve relevant chunks from Pinecone"""
+
+    print("Generating embedding...")
 
     query_embedding = generate_query_embedding(query)
+
+    print("Querying Pinecone...")
 
     results = index.query(
         vector=query_embedding,
@@ -68,24 +71,20 @@ def retrieve_context(query, top_k=5):
     contexts = []
     sources = []
 
-    matches = results.get("matches", [])
+    matches = results.matches
+
+    print("Matches found:", len(matches))
 
     for match in matches:
 
-        meta = match.get("metadata", {})
+        meta = match.metadata
 
-        text = meta.get("text")
-        source = meta.get("source")
-        page = meta.get("page")
+        contexts.append(meta.get("text", ""))
 
-        if text:
-            contexts.append(text)
-
-        if source:
-            sources.append({
-                "source": source,
-                "page": page
-            })
+        sources.append({
+            "source": meta.get("source", "unknown"),
+            "page": meta.get("page", "unknown")
+        })
 
     context = "\n\n".join(contexts)
 
