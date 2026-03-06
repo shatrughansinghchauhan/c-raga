@@ -10,7 +10,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 
 INDEX_NAME = "chatbot-index"
 
-# Smaller embedding model
+# Embedding model
 EMBED_MODEL = "BAAI/bge-large-en-v1.5"
 
 HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}"
@@ -23,11 +23,12 @@ headers = {
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(INDEX_NAME)
 
-# Groq
+# Groq client
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 
 def generate_query_embedding(query):
+    """Generate embedding from Hugging Face API"""
 
     payload = {"inputs": query}
 
@@ -37,18 +38,28 @@ def generate_query_embedding(query):
         json=payload
     )
 
-    embedding = response.json()
+    data = response.json()
+
+    if not data:
+        raise Exception("Embedding API returned empty response")
+
+    # HF returns token embeddings -> average them
+    if isinstance(data[0], list):
+        embedding = [sum(col) / len(col) for col in zip(*data)]
+    else:
+        embedding = data
 
     return embedding
 
 
 def retrieve_context(query, top_k=5):
+    """Retrieve relevant chunks from Pinecone"""
 
     query_embedding = generate_query_embedding(query)
 
     results = index.query(
         vector=query_embedding,
-        top_k=5,
+        top_k=top_k,
         namespace="class 6 - class 6th - Science (3).pdf",
         include_metadata=True
     )
@@ -56,16 +67,24 @@ def retrieve_context(query, top_k=5):
     contexts = []
     sources = []
 
-    for match in results["matches"]:
+    matches = results.get("matches", [])
 
-        meta = match["metadata"]
+    for match in matches:
 
-        contexts.append(meta["text"])
+        meta = match.get("metadata", {})
 
-        sources.append({
-            "source": meta["source"],
-            "page": meta["page"]
-        })
+        text = meta.get("text")
+        source = meta.get("source")
+        page = meta.get("page")
+
+        if text:
+            contexts.append(text)
+
+        if source:
+            sources.append({
+                "source": source,
+                "page": page
+            })
 
     context = "\n\n".join(contexts)
 
@@ -73,6 +92,7 @@ def retrieve_context(query, top_k=5):
 
 
 def ask_llm(query, context):
+    """Send context + question to LLM"""
 
     prompt = f"""
 You are a helpful assistant answering questions from documents.
@@ -103,12 +123,27 @@ Answer:
 
 
 def rag_chat(query):
+    """Main RAG pipeline"""
 
-    context, sources = retrieve_context(query)
+    try:
+        context, sources = retrieve_context(query)
 
-    answer = ask_llm(query, context)
+        if not context:
+            return {
+                "answer": "I could not find the answer in the documents.",
+                "sources": []
+            }
 
-    return {
-        "answer": answer,
-        "sources": sources
-    }
+        answer = ask_llm(query, context)
+
+        return {
+            "answer": answer,
+            "sources": sources
+        }
+
+    except Exception as e:
+        print("RAG ERROR:", str(e))
+        return {
+            "answer": "Sorry, something went wrong while processing your request.",
+            "sources": []
+        }
