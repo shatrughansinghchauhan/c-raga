@@ -1,47 +1,42 @@
-from vercel_runtime import VercelRequest, VercelResponse
-from rag_chat import retrieve_documents, generate_answer
-
-# -----------------------------
-# Precomputed embeddings dictionary
-# -----------------------------
-# Example: mapping questions to their embeddings
-# You can load this from a JSON or pickle file in root
-import json
+from flask import Flask, request, jsonify, send_from_directory
+from rag_chat import rag_chat
 import os
 
-EMBEDDINGS_FILE = os.path.join(os.path.dirname(__file__), "..", "precomputed_embeddings.json")
-precomputed_embeddings = {}
+app = Flask(__name__, static_folder="../frontend")
 
-if os.path.exists(EMBEDDINGS_FILE):
-    with open(EMBEDDINGS_FILE, "r", encoding="utf-8") as f:
-        precomputed_embeddings = json.load(f)
 
-# -----------------------------
-# Vercel API handler
-# -----------------------------
-def handler(req: VercelRequest):
-    try:
-        body = req.json
-        question = body.get("question", "").strip()
-        if not question:
-            return VercelResponse.json({"error": "Question is required"}, status=400)
+@app.route("/")
+def serve_ui():
+    return send_from_directory("../frontend", "index.html")
 
-        # Use precomputed embedding if exists, else return error
-        query_embedding = precomputed_embeddings.get(question)
-        if not query_embedding:
-            return VercelResponse.json({"error": "Embedding not found for this question"}, status=400)
 
-        # Retrieve relevant chunks from Pinecone
-        docs = retrieve_documents(query_embedding, top_k=5)
+@app.route("/script.js")
+def serve_js():
+    return send_from_directory("../frontend", "script.js")
 
-        if not docs:
-            return VercelResponse.json({"answer": "No relevant documents found."})
 
-        # Generate final answer using Groq
-        answer = generate_answer(question, docs)
+@app.route("/style.css")
+def serve_css():
+    return send_from_directory("../frontend", "style.css")
 
-        return VercelResponse.json({"answer": answer})
 
-    except Exception as e:
-        # Return clean JSON error for frontend
-        return VercelResponse.json({"error": str(e)}, status=500)
+@app.route("/chat", methods=["POST"])
+def chat():
+
+    data = request.get_json()
+
+    query = data.get("query")
+
+    if not query:
+        return jsonify({"error": "Query missing"}), 400
+
+    result = rag_chat(query)
+
+    return jsonify(result)
+
+
+if __name__ == "__main__":
+
+    port = int(os.environ.get("PORT", 5000))
+
+    app.run(host="0.0.0.0", port=port)
