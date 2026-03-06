@@ -11,9 +11,10 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 INDEX_NAME = "chatbot-index"
 
 # Embedding model
+# Smaller embedding model
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}"
+HF_URL = f"https://router.huggingface.co/hf-inference/models/{EMBED_MODEL}"
 
 headers = {
     "Authorization": f"Bearer {HF_API_KEY}"
