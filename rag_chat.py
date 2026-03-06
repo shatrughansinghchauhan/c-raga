@@ -48,7 +48,8 @@ def retrieve_context(query, top_k=5):
 
     results = index.query(
         vector=query_embedding,
-        top_k=top_k,
+        top_k=5,
+        namespace="class 6 - class 6th - Science (3).pdf",
         include_metadata=True
     )
 
