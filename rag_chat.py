@@ -11,7 +11,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 INDEX_NAME = "chatbot-index"
 
 # Smaller embedding model
-EMBED_MODEL = "BAAI/bge-small-en-v1.5"
+EMBED_MODEL = "BAAI/bge-large-en-v1.5"
 
 HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{EMBED_MODEL}"
 
