@@ -1,20 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="style.css">
-<title>RAG Chatbot</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="chat-container">
-  <div class="chat-header">RAG Chatbot</div>
-  <div class="chat-messages" id="chatMessages"></div>
-  <div class="chat-input">
-    <input type="text" id="userInput" placeholder="Type your question...">
-    <button id="sendBtn">Send</button>
-  </div>
-</div>
-<script src="script.js"></script>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>RAG Chatbot</h2>
+                <button id="toggle-sidebar">&#9776;</button>
+            </div>
+            <div class="sidebar-content">
+                <p>Welcome! Ask me anything based on uploaded PDFs.</p>
+            </div>
+        </aside>
+
+        <!-- Chat main -->
+        <main class="chat-main">
+            <div id="chat-container" class="chat-container">
+                <div class="empty-state">Ask a question to get started!</div>
+            </div>
+
+            <form id="input-form" class="input-form">
+                <input type="text" id="user-input" placeholder="Type your question..." autocomplete="off" />
+                <button type="submit">Send</button>
+            </form>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Sidebar toggle
+        const sidebar = document.getElementById("sidebar");
+        const toggleBtn = document.getElementById("toggle-sidebar");
+        toggleBtn.addEventListener("click", () => {
+            sidebar.classList.toggle("collapsed");
+        });
+    </script>
 </body>
 </html>
