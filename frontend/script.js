@@ -1,32 +1,64 @@
 async function sendMessage() {
 
-    const input = document.getElementById("userInput")
-    const chatbox = document.getElementById("chatbox")
+    const input = document.getElementById("userInput");
+    const chatbox = document.getElementById("chatbox");
 
-    const message = input.value
+    const message = input.value.trim();
 
-    if (!message) return
+    if (!message) return;
 
-    chatbox.innerHTML += `<div class="user">You: ${message}</div>`
+    // show user message
+    chatbox.innerHTML += `<div class="user">You: ${message}</div>`;
 
-    input.value = ""
+    input.value = "";
 
-    const response = await fetch("/chat", {
+    // show loading message
+    const loadingMsg = `<div class="bot">Bot: Thinking...</div>`;
+    chatbox.innerHTML += loadingMsg;
 
-        method: "POST",
+    chatbox.scrollTop = chatbox.scrollHeight;
 
-        headers: {
-            "Content-Type": "application/json"
-        },
+    try {
 
-        body: JSON.stringify({
-            query: message
-        })
-    })
+        const response = await fetch("/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                query: message
+            })
+        });
 
-    const data = await response.json()
+        const data = await response.json();
 
-    chatbox.innerHTML += `<div class="bot">Bot: ${data.answer}</div>`
+        // remove loading message
+        chatbox.removeChild(chatbox.lastChild);
 
-    chatbox.scrollTop = chatbox.scrollHeight
+        if (data.answer) {
+            chatbox.innerHTML += `<div class="bot">Bot: ${data.answer}</div>`;
+        } else if (data.error) {
+            chatbox.innerHTML += `<div class="bot">Bot: ${data.error}</div>`;
+        } else {
+            chatbox.innerHTML += `<div class="bot">Bot: No response received.</div>`;
+        }
+
+    } catch (error) {
+
+        chatbox.removeChild(chatbox.lastChild);
+
+        chatbox.innerHTML += `<div class="bot">Bot: Server error. Please try again.</div>`;
+
+        console.error("Chat error:", error);
+    }
+
+    chatbox.scrollTop = chatbox.scrollHeight;
 }
+
+
+// Send message on Enter key
+document.getElementById("userInput").addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+        sendMessage();
+    }
+});
