@@ -1,20 +1,21 @@
+
 async function sendMessage() {
 
     const input = document.getElementById("userInput");
     const chatbox = document.getElementById("chatbox");
 
     const message = input.value.trim();
-
     if (!message) return;
 
     // show user message
     chatbox.innerHTML += `<div class="user">You: ${message}</div>`;
-
     input.value = "";
 
-    // show loading message
-    const loadingMsg = `<div class="bot">Bot: Thinking...</div>`;
-    chatbox.innerHTML += loadingMsg;
+    // loading message
+    const loading = document.createElement("div");
+    loading.className = "bot";
+    loading.innerText = "Bot: Thinking...";
+    chatbox.appendChild(loading);
 
     chatbox.scrollTop = chatbox.scrollHeight;
 
@@ -25,27 +26,26 @@ async function sendMessage() {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                query: message
-            })
+            body: JSON.stringify({ query: message })
         });
 
         const data = await response.json();
 
-        // remove loading message
-        chatbox.removeChild(chatbox.lastChild);
+        chatbox.removeChild(loading);
 
         if (data.answer) {
             chatbox.innerHTML += `<div class="bot">Bot: ${data.answer}</div>`;
-        } else if (data.error) {
+        } 
+        else if (data.error) {
             chatbox.innerHTML += `<div class="bot">Bot: ${data.error}</div>`;
-        } else {
+        } 
+        else {
             chatbox.innerHTML += `<div class="bot">Bot: No response received.</div>`;
         }
 
     } catch (error) {
 
-        chatbox.removeChild(chatbox.lastChild);
+        chatbox.removeChild(loading);
 
         chatbox.innerHTML += `<div class="bot">Bot: Server error. Please try again.</div>`;
 
@@ -55,8 +55,7 @@ async function sendMessage() {
     chatbox.scrollTop = chatbox.scrollHeight;
 }
 
-
-// Send message on Enter key
+// Enter key support
 document.getElementById("userInput").addEventListener("keypress", function(e) {
     if (e.key === "Enter") {
         sendMessage();
