@@ -24,7 +24,9 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 def generate_query_embedding(query):
 
-    payload = {"inputs": query}
+    payload = {
+        "inputs": query
+    }
 
     response = requests.post(
         HF_URL,
@@ -39,7 +41,10 @@ def generate_query_embedding(query):
     if isinstance(result, dict):
         raise Exception(f"HuggingFace error: {result}")
 
-    return result[0]
+    # ensure vector format
+    embedding = result[0] if isinstance(result[0], list) else result
+
+    return embedding
 
 
 def retrieve_context(query, top_k=5):
