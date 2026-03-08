@@ -3,28 +3,22 @@ import requests
 from pinecone import Pinecone
 from groq import Groq
 
-# Environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 HF_API_KEY = os.getenv("HF_API_KEY")
 
 INDEX_NAME = "chatbot-index"
 
-# Embedding model
-# Smaller embedding model
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-
 HF_URL = f"https://router.huggingface.co/hf-inference/models/{EMBED_MODEL}"
 
 headers = {
     "Authorization": f"Bearer {HF_API_KEY}"
 }
 
-# Pinecone
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(INDEX_NAME)
 
-# Groq client
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 
@@ -59,7 +53,7 @@ def retrieve_context(query, top_k=5):
         include_metadata=True
     )
 
-    matches = results.get("matches", [])
+    matches = results.matches if hasattr(results, "matches") else []
 
     if not matches:
         print("No matches returned from Pinecone")
@@ -70,7 +64,7 @@ def retrieve_context(query, top_k=5):
 
     for match in matches:
 
-        meta = match.get("metadata", {})
+        meta = match.metadata if hasattr(match, "metadata") else {}
 
         contexts.append(meta.get("text", ""))
 
@@ -83,8 +77,8 @@ def retrieve_context(query, top_k=5):
 
     return context, sources
 
+
 def ask_llm(query, context):
-    """Send context + question to LLM"""
 
     prompt = f"""
 You are a helpful assistant answering questions from documents.
@@ -115,7 +109,6 @@ Answer:
 
 
 def rag_chat(query):
-    """Main RAG pipeline"""
 
     try:
 
@@ -127,7 +120,6 @@ def rag_chat(query):
 
         if not context:
             print("No context retrieved from Pinecone")
-
             return {
                 "answer": "I could not find the answer in the documents.",
                 "sources": []
@@ -144,11 +136,11 @@ def rag_chat(query):
             "sources": sources
         }
 
-    except Exception as e:
+    except Exception:
 
         import traceback
         print("========== RAG ERROR ==========")
-        traceback.print_exc()   # THIS SHOWS THE REAL ERROR
+        traceback.print_exc()
         print("================================")
 
         return {
