@@ -2,37 +2,51 @@ from flask import Flask, request, jsonify, send_from_directory
 from rag_chat import rag_chat
 import os
 
-app = Flask(__name__, static_folder="../frontend")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
+
+app = Flask(__name__, static_folder=FRONTEND_DIR)
 
 
 @app.route("/")
 def serve_ui():
-    return send_from_directory("../frontend", "index.html")
+    return send_from_directory(FRONTEND_DIR, "index.html")
 
 
 @app.route("/script.js")
 def serve_js():
-    return send_from_directory("../frontend", "script.js")
+    return send_from_directory(FRONTEND_DIR, "script.js")
 
 
 @app.route("/style.css")
 def serve_css():
-    return send_from_directory("../frontend", "style.css")
+    return send_from_directory(FRONTEND_DIR, "style.css")
 
 
 @app.route("/chat", methods=["POST"])
 def chat():
 
-    data = request.get_json()
+    try:
 
-    query = data.get("query")
+        data = request.get_json()
+        query = data.get("query")
 
-    if not query:
-        return jsonify({"error": "Query missing"}), 400
+        print("USER QUERY:", query)
 
-    result = rag_chat(query)
+        if not query:
+            return jsonify({"error": "Query missing"}), 400
 
-    return jsonify(result)
+        result = rag_chat(query)
+
+        return jsonify(result)
+
+    except Exception as e:
+
+        print("CHAT ROUTE ERROR:", str(e))
+
+        return jsonify({
+            "error": "Server failed to process request"
+        }), 500
 
 
 if __name__ == "__main__":
