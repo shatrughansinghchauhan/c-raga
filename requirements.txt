@@ -4,3 +4,6 @@ groq
 requests
 gunicorn
 python-dotenv
+sentence-transformers
+torch
+numpy
