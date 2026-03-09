@@ -1,154 +1,126 @@
 import os
-import requests
+import traceback
 from pinecone import Pinecone
 from groq import Groq
+from sentence_transformers import SentenceTransformer
+
+# =========================
+# Environment Variables
+# =========================
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-HF_API_KEY = os.getenv("HF_API_KEY")
-
 INDEX_NAME = "chatbot-index"
 
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-HF_URL = f"https://router.huggingface.co/hf-inference/models/{EMBED_MODEL}"
+# =========================
+# Initialize Models
+# =========================
 
-headers = {
-    "Authorization": f"Bearer {HF_API_KEY}"
-}
+print("Loading embedding model...")
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+print("Embedding model loaded.")
 
+print("Initializing Pinecone...")
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(INDEX_NAME)
+print("Pinecone connected.")
 
-groq_client = Groq(api_key=GROQ_API_KEY)
+print("Initializing Groq client...")
+client = Groq(api_key=GROQ_API_KEY)
+print("Groq client ready.")
 
+# =========================
+# Helper Functions
+# =========================
 
-def generate_query_embedding(query):
-
-    payload = {
-        "inputs": query
-    }
-
-    response = requests.post(
-        HF_URL,
-        headers=headers,
-        json=payload
-    )
-
-    result = response.json()
-
-    print("HF RESPONSE:", result)
-
-    if isinstance(result, dict):
-        raise Exception(f"HuggingFace error: {result}")
-
-    # ensure vector format
-    embedding = result[0] if isinstance(result[0], list) else result
-
+def generate_embedding(text):
+    print("Step 1: Generating embedding for query...")
+    embedding = embedding_model.encode(text).tolist()
+    print("Embedding generated.")
     return embedding
 
 
-def retrieve_context(query, top_k=5):
-
-    query_embedding = generate_query_embedding(query)
-
+def search_vector_db(embedding):
+    print("Step 2: Searching Pinecone...")
     results = index.query(
-        vector=query_embedding,
-        top_k=top_k,
-        namespace="class 6 - class 6th - Science (3).pdf",
+        vector=embedding,
+        top_k=5,
         include_metadata=True
     )
+    print("Pinecone search complete.")
+    return results
 
-    matches = results.matches if hasattr(results, "matches") else []
 
-    if not matches:
-        print("No matches returned from Pinecone")
-        return "", []
+def build_context(results):
+    print("Step 3: Building context from Pinecone results...")
 
-    contexts = []
-    sources = []
+    context = ""
+    matches = results.get("matches", [])
 
     for match in matches:
+        if "metadata" in match and "text" in match["metadata"]:
+            context += match["metadata"]["text"] + "\n"
 
-        meta = match.metadata if hasattr(match, "metadata") else {}
-
-        contexts.append(meta.get("text", ""))
-
-        sources.append({
-            "source": meta.get("source", "unknown"),
-            "page": meta.get("page", "unknown")
-        })
-
-    context = "\n\n".join(contexts)
-
-    return context, sources
+    print("Context built.")
+    return context
 
 
 def ask_llm(query, context):
+    print("Step 4: Sending request to LLM...")
 
     prompt = f"""
-You are a helpful assistant answering questions from documents.
-
-Use ONLY the context below.
-
-If the answer is not present say:
-"I could not find the answer in the documents."
+Answer the question using the context below.
 
 Context:
 {context}
 
 Question:
 {query}
-
-Answer:
 """
 
-    response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+    completion = client.chat.completions.create(
+        model="llama3-70b-8192",
         messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
-        ],
-        temperature=0.2
+        ]
     )
 
-    return response.choices[0].message.content
+    print("LLM response received.")
+    return completion.choices[0].message.content
 
 
-def rag_chat(query):
+# =========================
+# Main Pipeline Function
+# =========================
+
+def chat(query):
 
     try:
+        print("\n---------------------------")
+        print("New Query Received:", query)
 
-        print("STEP 1: Query received ->", query)
+        # Step 1: Embedding
+        embedding = generate_embedding(query)
 
-        context, sources = retrieve_context(query)
+        # Step 2: Vector Search
+        results = search_vector_db(embedding)
 
-        print("STEP 2: Context length ->", len(context))
+        # Step 3: Context
+        context = build_context(results)
 
-        if not context:
-            print("No context retrieved from Pinecone")
-            return {
-                "answer": "I could not find the answer in the documents.",
-                "sources": []
-            }
+        # Step 4: LLM
+        response = ask_llm(query, context)
 
-        print("STEP 3: Sending prompt to LLM")
+        print("Step 5: Returning response.")
+        print("---------------------------\n")
 
-        answer = ask_llm(query, context)
+        return response
 
-        print("STEP 4: LLM response received")
-
-        return {
-            "answer": answer,
-            "sources": sources
-        }
-
-    except Exception:
-
-        import traceback
-        print("========== RAG ERROR ==========")
+    except Exception as e:
+        print("\n!!!!!!!! ERROR OCCURRED !!!!!!!!")
+        print(str(e))
         traceback.print_exc()
-        print("================================")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
 
-        return {
-            "answer": "Server error occurred while processing the request.",
-            "sources": []
-        }
+        return "Server error occurred while processing the request."
